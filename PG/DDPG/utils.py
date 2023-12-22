@@ -41,8 +41,8 @@ class Actor(nn.Module):
         super(Actor, self).__init__()
 
         self.l1 = nn.Linear(state_dim, net_width)  # 第一个全连接层
-        self.l2 = nn.Linear(net_width, 300)  # 第二个全连接层
-        self.l3 = nn.Linear(300, action_dim)  # 输出层
+        self.l2 = nn.Linear(net_width, net_width)  # 第二个全连接层
+        self.l3 = nn.Linear(net_width, action_dim)  # 输出层
 
         self.maxaction = maxaction
 
@@ -83,8 +83,8 @@ class Q_Critic(nn.Module):
         super(Q_Critic, self).__init__()
 
         self.l1 = nn.Linear(state_dim + action_dim, net_width)  # 输入层
-        self.l2 = nn.Linear(net_width, 300)  # 第二个全连接层
-        self.l3 = nn.Linear(300, 1)  # 输出层
+        self.l2 = nn.Linear(net_width, net_width)  # 第二个全连接层
+        self.l3 = nn.Linear(net_width, 1)  # 输出层
 
     def forward(self, state, action):
         """
@@ -275,6 +275,8 @@ def Reward_adapter(r, env_name):
         if r <= -100:
             r = -1
     elif env_name == "LunarLanderContinuous-v2":
+        r = r
+    elif env_name == "InvertedDoublePendulum-v4":
         r = r
     elif env_name == "MountainCarContinuous-v0":
         r = r * 100

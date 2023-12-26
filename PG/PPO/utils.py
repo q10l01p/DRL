@@ -1,3 +1,4 @@
+import numpy as np
 import torch.nn.functional as F
 import torch.nn as nn
 import torch
@@ -378,6 +379,7 @@ def evaluate_policy(env, agent, turns, cfg):
             a, logprob_a = agent.select_action(s, deterministic=True)
             act = action_adapter(a, cfg['max_action'])
             s_next, r, dw, tr, info = env.step(act)  # 执行动作，获取下一个状态、奖励和其他信息
+            r = Reward_adapter(r, cfg['env_name'], s, s_next, a)  # 对奖励进行适配
             done = (dw or tr)  # 判断是否完成（done为True）
 
             total_scores += r  # 累加每步的奖励到总分
@@ -491,7 +493,7 @@ def action_adapter(a, max_action):
     return 2 * (a - 0.5) * max_action
 
 
-def Reward_adapter(r, env_name):
+def Reward_adapter(r, env_name, state, state_next, action):
     """
     奖励适配器函数，根据环境索引对奖励进行适配
 
@@ -517,8 +519,40 @@ def Reward_adapter(r, env_name):
         r = r
     elif env_name == "MountainCarContinuous-v0":
         r = r * 100
+    elif env_name == "HalfCheetah-v2":
+        x_position_old = state[8]
+        x_position = state_next[8]
+
+        action_penalty = -0.1 * np.sum(np.square(action))
+        if x_position != x_position_old:
+            forward_reward = (x_position - x_position_old)
+        else:
+            forward_reward = -1
+
+        fall_penalty = -10.0 if x_position < 0.2 else 0.0
+
+        r = forward_reward + action_penalty + fall_penalty
     elif env_name == "HumanoidStandup-v4":
-        r = r / 100
+        r = 0
+        # 观测中关于躯干中心的信息
+        torso_position = state_next[:3]  # 躯干中心的位置坐标
+        torso_orientation = state_next[3:7]  # 躯干中心的姿态（四元数表示）
+
+        # 计算躯干中心的倾斜程度
+        torso_tilt = np.arccos(np.clip(2 * (torso_orientation[0]**2 + torso_orientation[3]**2) - 1, -1, 1))
+
+        # 调整权重，根据任务的具体情况调整
+        tilt_weight = 0.5
+        joint_velocity_weight = 0.5
+
+        # 倾斜角度奖励
+        tilt_reward = np.exp(-tilt_weight * torso_tilt)
+
+        # 关节角速度变化率奖励（可以根据实际需要调整关节的索引范围）
+        joint_velocity_reward = np.exp(-joint_velocity_weight * np.sum(np.abs(state_next[22:])))
+
+        # 总奖励，可以根据任务需要调整权重
+        r = tilt_reward + joint_velocity_reward
     else:
         r = r
     return r
